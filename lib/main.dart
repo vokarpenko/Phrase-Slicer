@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -1600,6 +1601,8 @@ class FfmpegService {
           'winget',
           '--accept-package-agreements',
           '--accept-source-agreements',
+          '--silent',
+          '--disable-interactivity',
         ],
       ),
       _InstallAttempt(
@@ -1622,22 +1625,21 @@ class FfmpegService {
       }
 
       onProgress('Устанавливаю ffmpeg через ${attempt.manager}...');
-      final result = await _runCommand(attempt.command, attempt.args);
+      final command = await _findCommand(attempt.command);
+      final result = await _runCommand(command!, attempt.args);
       if (await isAvailable()) {
         return FfmpegInstallResult(
           success: true,
           message: 'ffmpeg установлен через ${attempt.manager}.',
         );
       }
-      errors.add(
-        '${attempt.manager}: ${result.output.isEmpty ? 'команда завершилась без результата' : result.output}',
-      );
+      errors.add('${attempt.manager}: ${_shortCommandOutput(result.output)}');
     }
 
     return FfmpegInstallResult(
       success: false,
       message:
-          'Не удалось автоустановить ffmpeg. Установите winget, Chocolatey или Scoop, затем повторите. Детали: ${errors.join(' | ')}',
+          'Не удалось автоустановить ffmpeg. Если установка через winget уже завершилась, нажмите "Установить ffmpeg" еще раз или перезапустите приложение. Детали: ${errors.join(' | ')}',
     );
   }
 
@@ -1648,6 +1650,9 @@ class FfmpegService {
       p.join(Directory.current.path, executable),
       p.join(p.dirname(Platform.resolvedExecutable), executable),
     ];
+    if (Platform.isWindows) {
+      candidates.addAll(await _windowsToolCandidates(executable));
+    }
     if (Platform.isMacOS) {
       candidates.addAll([
         p.join('/opt/homebrew/bin', executable),
@@ -1670,9 +1675,21 @@ class FfmpegService {
   }
 
   Future<String?> _findCommand(String name) async {
-    final check = Platform.isWindows
-        ? await _runCommand('where', [name])
-        : await _runCommand('/bin/sh', ['-lc', 'command -v $name']);
+    if (Platform.isWindows) {
+      final knownCommand = _knownWindowsCommand(name);
+      if (knownCommand != null && await File(knownCommand).exists()) {
+        return knownCommand;
+      }
+
+      final check = await _runCommand('cmd.exe', ['/c', 'where', name]);
+      if (check.success) {
+        final output = check.output.split(RegExp(r'\r?\n')).first.trim();
+        if (output.isNotEmpty) return output;
+      }
+      return null;
+    }
+
+    final check = await _runCommand('/bin/sh', ['-lc', 'command -v $name']);
     if (!check.success) return null;
 
     final output = check.output.split(RegExp(r'\r?\n')).first.trim();
@@ -1681,10 +1698,16 @@ class FfmpegService {
 
   Future<_CommandResult> _runCommand(String command, List<String> args) async {
     try {
+      final windowsScript =
+          Platform.isWindows &&
+          (command.toLowerCase().endsWith('.cmd') ||
+              command.toLowerCase().endsWith('.bat'));
       final result = await Process.run(
-        command,
-        args,
-        runInShell: Platform.isWindows,
+        windowsScript ? 'cmd.exe' : command,
+        windowsScript ? ['/d', '/c', command, ...args] : args,
+        runInShell: false,
+        stdoutEncoding: Platform.isWindows ? utf8 : systemEncoding,
+        stderrEncoding: Platform.isWindows ? utf8 : systemEncoding,
       );
       final stdout = (result.stdout as Object).toString().trim();
       final stderr = (result.stderr as Object).toString().trim();
@@ -1703,6 +1726,102 @@ class FfmpegService {
   int _readInt16Le(int lo, int hi) {
     final value = lo | (hi << 8);
     return value >= 0x8000 ? value - 0x10000 : value;
+  }
+
+  Future<List<String>> _windowsToolCandidates(String executable) async {
+    final env = Platform.environment;
+    final localAppData = env['LOCALAPPDATA'];
+    final programFiles = env['ProgramFiles'];
+    final programFilesX86 = env['ProgramFiles(x86)'];
+    final programData = env['ProgramData'] ?? r'C:\ProgramData';
+    final userProfile = env['USERPROFILE'];
+    final chocolateyInstall = env['ChocolateyInstall'];
+
+    final candidates = <String>[
+      if (localAppData != null)
+        p.join(localAppData, 'Microsoft', 'WinGet', 'Links', executable),
+      if (localAppData != null)
+        p.join(localAppData, 'Microsoft', 'WindowsApps', executable),
+      if (programFiles != null)
+        p.join(programFiles, 'ffmpeg', 'bin', executable),
+      if (programFilesX86 != null)
+        p.join(programFilesX86, 'ffmpeg', 'bin', executable),
+      if (chocolateyInstall != null)
+        p.join(chocolateyInstall, 'bin', executable),
+      p.join(programData, 'chocolatey', 'bin', executable),
+      if (userProfile != null)
+        p.join(userProfile, 'scoop', 'shims', executable),
+      p.join(programData, 'scoop', 'shims', executable),
+    ];
+
+    if (localAppData != null) {
+      candidates.addAll(
+        await _findNestedWindowsTools(
+          Directory(p.join(localAppData, 'Microsoft', 'WinGet', 'Packages')),
+          executable,
+        ),
+      );
+    }
+
+    return candidates;
+  }
+
+  Future<List<String>> _findNestedWindowsTools(
+    Directory root,
+    String executable,
+  ) async {
+    if (!await root.exists()) return const [];
+    final matches = <String>[];
+    try {
+      await for (final entity in root.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is File &&
+            p.basename(entity.path).toLowerCase() == executable.toLowerCase()) {
+          matches.add(entity.path);
+          if (matches.length >= 8) break;
+        }
+      }
+    } on Object {
+      return matches;
+    }
+    return matches;
+  }
+
+  String? _knownWindowsCommand(String name) {
+    final env = Platform.environment;
+    final localAppData = env['LOCALAPPDATA'];
+    final programData = env['ProgramData'] ?? r'C:\ProgramData';
+    final userProfile = env['USERPROFILE'];
+    final chocolateyInstall = env['ChocolateyInstall'];
+
+    final executable = name.toLowerCase().endsWith('.exe') ? name : '$name.exe';
+    final candidates = <String>[
+      if (name == 'winget' && localAppData != null)
+        p.join(localAppData, 'Microsoft', 'WindowsApps', executable),
+      if (name == 'choco' && chocolateyInstall != null)
+        p.join(chocolateyInstall, 'bin', executable),
+      if (name == 'choco') p.join(programData, 'chocolatey', 'bin', executable),
+      if (name == 'scoop' && userProfile != null)
+        p.join(userProfile, 'scoop', 'shims', executable),
+      if (name == 'scoop') p.join(programData, 'scoop', 'shims', executable),
+    ];
+
+    for (final candidate in candidates) {
+      if (File(candidate).existsSync()) return candidate;
+    }
+    return null;
+  }
+
+  String _shortCommandOutput(String output) {
+    final cleaned = output
+        .replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.isEmpty) return 'команда завершилась без результата';
+    if (cleaned.length <= 500) return cleaned;
+    return '${cleaned.substring(0, 500)}...';
   }
 }
 
