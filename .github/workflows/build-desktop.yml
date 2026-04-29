@@ -2,14 +2,10 @@ name: Build Desktop
 
 on:
   push:
-    branches:
-      - main
-      - master
-  pull_request:
-    branches:
-      - main
-      - master
-  workflow_dispatch:
+    tags:
+      - 'v*'           # Запуск при создании тегов типа v1.0.0
+      - '*'            # Или любых других тегов
+  workflow_dispatch:   # Оставил возможность ручного запуска на всякий случай
 
 env:
   FLUTTER_VERSION: "3.38.10"
