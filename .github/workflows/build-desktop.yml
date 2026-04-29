@@ -1,0 +1,107 @@
+name: Build Desktop
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  FLUTTER_VERSION: "3.38.10"
+  APP_NAME: "Phrase Slicer"
+
+jobs:
+  build-windows:
+    name: Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Pack Windows artifact
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/artifacts | Out-Null
+          Compress-Archive `
+            -Path "build/windows/x64/runner/Release/*" `
+            -DestinationPath "build/artifacts/phrase-slicer-windows.zip" `
+            -Force
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phrase-slicer-windows
+          path: build/artifacts/phrase-slicer-windows.zip
+          if-no-files-found: error
+
+  build-macos:
+    name: macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Enable macOS desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build macOS release
+        run: flutter build macos --release
+
+      - name: Pack macOS artifact
+        run: |
+          mkdir -p build/artifacts
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build/macos/Build/Products/Release/${APP_NAME}.app" \
+            "build/artifacts/phrase-slicer-macos.zip"
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phrase-slicer-macos
+          path: build/artifacts/phrase-slicer-macos.zip
+          if-no-files-found: error
