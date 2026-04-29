@@ -8,16 +8,32 @@ class InputPane extends StatelessWidget {
     required this.outputDir,
     required this.phrasesController,
     required this.phraseCount,
+    required this.ffmpegReady,
+    required this.busy,
+    required this.installingDependencies,
+    required this.exportVolumeMultiplier,
     required this.onPickAudio,
     required this.onPickOutput,
+    required this.onInstallDependencies,
+    required this.onAutoMark,
+    required this.onExport,
+    required this.onExportVolumeChanged,
   });
 
   final String? audioPath;
   final String? outputDir;
   final TextEditingController phrasesController;
   final int phraseCount;
+  final bool ffmpegReady;
+  final bool busy;
+  final bool installingDependencies;
+  final double exportVolumeMultiplier;
   final VoidCallback onPickAudio;
   final VoidCallback onPickOutput;
+  final VoidCallback? onInstallDependencies;
+  final VoidCallback onAutoMark;
+  final VoidCallback? onExport;
+  final ValueChanged<double> onExportVolumeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -27,11 +43,26 @@ class InputPane extends StatelessWidget {
         border: Border.all(color: const Color(0xFFD9E0DD)),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final cramped = constraints.maxHeight < 360;
+          final phrasesField = TextField(
+            controller: phrasesController,
+            expands: !cramped,
+            minLines: cramped ? 10 : null,
+            maxLines: cramped ? 10 : null,
+            textAlignVertical: TextAlignVertical.top,
+            decoration: const InputDecoration(
+              hintText: 'Hello world\nHow are you?\nNice to meet you',
+              border: OutlineInputBorder(),
+              filled: true,
+              fillColor: Color(0xFFFBFCFB),
+              contentPadding: EdgeInsets.all(12),
+            ),
+            style: const TextStyle(fontSize: 14, height: 1.35),
+          );
+
+          final content = [
             Row(
               children: [
                 Expanded(
@@ -58,6 +89,66 @@ class InputPane extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: busy ? null : onPickAudio,
+                  icon: const Icon(Icons.audio_file),
+                  label: const Text('MP3'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: busy ? null : onPickOutput,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Папка'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: installingDependencies
+                      ? null
+                      : onInstallDependencies,
+                  icon: installingDependencies
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(ffmpegReady ? Icons.check_circle : Icons.download),
+                  label: Text(
+                    ffmpegReady ? 'ffmpeg готов' : 'Установить ffmpeg',
+                  ),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: busy ? null : onAutoMark,
+                  icon: const Icon(Icons.auto_fix_high),
+                  label: const Text('Авторазметка'),
+                ),
+                FilledButton.icon(
+                  onPressed: busy ? null : onExport,
+                  icon: const Icon(Icons.save_alt),
+                  label: const Text('Экспорт'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Text(
+                  'Громкость экспорта',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                ),
+                const Spacer(),
+                Text('${exportVolumeMultiplier.toStringAsFixed(2)}x'),
+              ],
+            ),
+            Slider(
+              value: exportVolumeMultiplier,
+              min: 0.5,
+              max: 4.0,
+              divisions: 15,
+              label: '${exportVolumeMultiplier.toStringAsFixed(2)}x',
+              onChanged: busy ? null : onExportVolumeChanged,
+            ),
             Row(
               children: [
                 const Text(
@@ -72,25 +163,31 @@ class InputPane extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Expanded(
-              child: TextField(
-                controller: phrasesController,
-                expands: true,
-                minLines: null,
-                maxLines: null,
-                textAlignVertical: TextAlignVertical.top,
-                decoration: const InputDecoration(
-                  hintText: 'Hello world\nHow are you?\nNice to meet you',
-                  border: OutlineInputBorder(),
-                  filled: true,
-                  fillColor: Color(0xFFFBFCFB),
-                  contentPadding: EdgeInsets.all(12),
-                ),
-                style: const TextStyle(fontSize: 14, height: 1.35),
+          ];
+
+          if (cramped) {
+            return Padding(
+              padding: const EdgeInsets.all(14),
+              child: ListView(
+                children: [
+                  ...content,
+                  SizedBox(height: 220, child: phrasesField),
+                ],
               ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...content,
+                Expanded(child: phrasesField),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

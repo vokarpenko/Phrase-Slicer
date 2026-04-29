@@ -1,8 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-
-import '../models/phrase_segment.dart';
 import '../utils/time_format.dart';
 import 'waveform_editor.dart';
 
@@ -16,12 +14,8 @@ class WorkspacePane extends StatelessWidget {
     required this.playing,
     required this.waveform,
     required this.boundaries,
-    required this.segments,
-    required this.selectedSegment,
     required this.onTogglePlay,
     required this.onSeek,
-    required this.onSelectSegment,
-    required this.onPreviewSegment,
     required this.onBoundaryDragStart,
     required this.onBoundaryDragUpdate,
     required this.onBoundaryDragEnd,
@@ -34,12 +28,8 @@ class WorkspacePane extends StatelessWidget {
   final bool playing;
   final List<double> waveform;
   final List<double> boundaries;
-  final List<PhraseSegment> segments;
-  final int? selectedSegment;
   final VoidCallback onTogglePlay;
   final ValueChanged<double> onSeek;
-  final ValueChanged<int> onSelectSegment;
-  final ValueChanged<int> onPreviewSegment;
   final ValueChanged<int> onBoundaryDragStart;
   final void Function(int index, double seconds) onBoundaryDragUpdate;
   final VoidCallback onBoundaryDragEnd;
@@ -48,8 +38,8 @@ class WorkspacePane extends StatelessWidget {
   Widget build(BuildContext context) {
     final totalSeconds = duration.inMilliseconds / 1000;
     final waveformHeight = MediaQuery.sizeOf(context).height < 760
-        ? 90.0
-        : 220.0;
+        ? 100.0
+        : 180.0;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -93,7 +83,7 @@ class WorkspacePane extends StatelessWidget {
                 boundaries: boundaries,
                 duration: duration,
                 position: position,
-                selectedSegment: selectedSegment,
+                selectedSegment: null,
                 onSeek: onSeek,
                 onBoundaryDragStart: onBoundaryDragStart,
                 onBoundaryDragUpdate: onBoundaryDragUpdate,
@@ -122,58 +112,6 @@ class WorkspacePane extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: segments.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Сегменты появятся после загрузки аудио и списка фраз.',
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: segments.length,
-                    separatorBuilder: (context, index) =>
-                        const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final segment = segments[index];
-                      final selected = selectedSegment == index;
-                      return Material(
-                        color: selected
-                            ? const Color(0xFFE9F3F1)
-                            : Colors.white,
-                        child: ListTile(
-                          dense: true,
-                          selected: selected,
-                          onTap: () => onSelectSegment(index),
-                          leading: SizedBox(
-                            width: 34,
-                            child: Text(
-                              '${index + 1}',
-                              textAlign: TextAlign.right,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            segment.phrase,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          subtitle: Text(
-                            '${formatSeconds(segment.start)} - ${formatSeconds(segment.end)}'
-                            '  (${formatSeconds(segment.end - segment.start)})',
-                          ),
-                          trailing: IconButton(
-                            onPressed: () => onPreviewSegment(index),
-                            icon: const Icon(Icons.play_circle),
-                            tooltip: 'Прослушать фразу',
-                          ),
-                        ),
-                      );
-                    },
-                  ),
           ),
         ],
       ),

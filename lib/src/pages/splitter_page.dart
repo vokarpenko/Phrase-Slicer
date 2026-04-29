@@ -11,6 +11,7 @@ import '../models/phrase_segment.dart';
 import '../services/ffmpeg_service.dart';
 import '../widgets/header.dart';
 import '../widgets/input_pane.dart';
+import '../widgets/segments_pane.dart';
 import '../widgets/workspace_pane.dart';
 
 class SplitterPage extends StatefulWidget {
@@ -46,6 +47,7 @@ class _SplitterPageState extends State<SplitterPage> {
   bool _isInstallingDependencies = false;
   bool _isDraggingOver = false;
   bool _ffmpegReady = false;
+  double _exportVolumeMultiplier = 1.0;
   int? _selectedSegment;
   int? _dragBoundaryIndex;
 
@@ -430,6 +432,7 @@ class _SplitterPageState extends State<SplitterPage> {
           outputPath,
           segment.start,
           segment.end,
+          _exportVolumeMultiplier,
         );
         if (!mounted) return;
         setState(
@@ -501,29 +504,33 @@ class _SplitterPageState extends State<SplitterPage> {
                   Header(
                     ffmpegStatus: _ffmpegStatus,
                     ffmpegReady: _ffmpegReady,
-                    busy: _isBusy,
-                    installingDependencies: _isInstallingDependencies,
-                    onPickAudio: _pickAudio,
-                    onPickOutput: _pickOutputDir,
-                    onInstallDependencies: _ffmpegReady ? null : _installFfmpeg,
-                    onAutoMark: _autoMark,
-                    onExport: canExport ? _exportSegments : null,
                   ),
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
                       child: LayoutBuilder(
                         builder: (context, constraints) {
-                          final compact = constraints.maxWidth < 980;
-                          final leftPane = InputPane(
+                          final compact = constraints.maxWidth < 1100;
+                          final inputPane = InputPane(
                             audioPath: _audioPath,
                             outputDir: _outputDir,
                             phrasesController: _phrasesController,
                             phraseCount: _phrases.length,
+                            ffmpegReady: _ffmpegReady,
+                            busy: _isBusy,
+                            installingDependencies: _isInstallingDependencies,
+                            exportVolumeMultiplier: _exportVolumeMultiplier,
                             onPickAudio: _pickAudio,
                             onPickOutput: _pickOutputDir,
+                            onInstallDependencies: _ffmpegReady
+                                ? null
+                                : _installFfmpeg,
+                            onAutoMark: _autoMark,
+                            onExport: canExport ? _exportSegments : null,
+                            onExportVolumeChanged: (value) =>
+                                setState(() => _exportVolumeMultiplier = value),
                           );
-                          final rightPane = WorkspacePane(
+                          final workspacePane = WorkspacePane(
                             status: _status,
                             busy: _isBusy,
                             duration: _duration,
@@ -531,38 +538,60 @@ class _SplitterPageState extends State<SplitterPage> {
                             playing: _isPlaying,
                             waveform: _waveform,
                             boundaries: _boundaries,
-                            segments: segments,
-                            selectedSegment: _selectedSegment,
                             onTogglePlay: _togglePlay,
                             onSeek: _seekToSeconds,
-                            onSelectSegment: (index) =>
-                                setState(() => _selectedSegment = index),
-                            onPreviewSegment: _previewSegment,
                             onBoundaryDragStart: (index) =>
                                 _dragBoundaryIndex = index,
                             onBoundaryDragUpdate: _updateBoundary,
                             onBoundaryDragEnd: () => _dragBoundaryIndex = null,
                           );
+                          final segmentsPane = SegmentsPane(
+                            segments: segments,
+                            selectedSegment: _selectedSegment,
+                            onSelectSegment: (index) =>
+                                setState(() => _selectedSegment = index),
+                            onPreviewSegment: _previewSegment,
+                          );
 
                           if (compact) {
-                            final inputHeight = (constraints.maxHeight * 0.40)
-                                .clamp(170.0, 260.0)
-                                .toDouble();
                             return Column(
                               children: [
-                                SizedBox(height: inputHeight, child: leftPane),
+                                SizedBox(height: 290, child: workspacePane),
                                 const SizedBox(height: 14),
-                                Expanded(child: rightPane),
+                                Expanded(
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Expanded(child: inputPane),
+                                      const SizedBox(width: 14),
+                                      Expanded(child: segmentsPane),
+                                    ],
+                                  ),
+                                ),
                               ],
                             );
                           }
 
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                          return Column(
                             children: [
-                              SizedBox(width: 390, child: leftPane),
-                              const SizedBox(width: 16),
-                              Expanded(child: rightPane),
+                              SizedBox(
+                                height: 320,
+                                width: double.infinity,
+                                child: workspacePane,
+                              ),
+                              const SizedBox(height: 16),
+                              Expanded(
+                                child: Row(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    SizedBox(width: 420, child: inputPane),
+                                    const SizedBox(width: 16),
+                                    Expanded(child: segmentsPane),
+                                  ],
+                                ),
+                              ),
                             ],
                           );
                         },

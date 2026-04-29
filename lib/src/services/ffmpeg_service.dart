@@ -163,6 +163,7 @@ class FfmpegService {
     String outputPath,
     double startSeconds,
     double endSeconds,
+    double volumeMultiplier,
   ) async {
     final ffmpeg = await _requiredTool('ffmpeg');
     final duration = math.max(0.05, endSeconds - startSeconds);
@@ -178,6 +179,8 @@ class FfmpegService {
       '-t',
       _formatFfmpegSeconds(duration),
       '-vn',
+      '-filter:a',
+      'volume=${volumeMultiplier.toStringAsFixed(3)}',
       '-codec:a',
       'libmp3lame',
       '-q:a',

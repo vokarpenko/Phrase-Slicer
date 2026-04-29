@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phrase_slicer/src/app.dart';
 
@@ -8,7 +9,6 @@ void main() {
     await tester.pumpWidget(const PhraseSlicerApp(enablePlayback: false));
 
     expect(find.text('Phrase Slicer'), findsOneWidget);
-    expect(find.text('Фразы'), findsOneWidget);
-    expect(find.text('Экспорт'), findsOneWidget);
+    expect(find.byType(Slider), findsWidgets);
   });
 }
