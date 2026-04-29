@@ -11,7 +11,6 @@ import 'package:path/path.dart' as p;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized();
   runApp(const PhraseCutterApp());
 }
 
@@ -101,6 +100,27 @@ class _SplitterPageState extends State<SplitterPage> {
     super.initState();
     _phrasesController.addListener(_handlePhrasesChanged);
     if (widget.enablePlayback) {
+      _initializePlayback();
+      unawaited(_checkFfmpeg());
+    } else {
+      _ffmpegStatus = 'ffmpeg check disabled';
+    }
+  }
+
+  @override
+  void dispose() {
+    _phrasesController.removeListener(_handlePhrasesChanged);
+    _phrasesController.dispose();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _playingSub?.cancel();
+    _player?.dispose();
+    super.dispose();
+  }
+
+  void _initializePlayback() {
+    try {
+      MediaKit.ensureInitialized();
       final player = Player();
       _player = player;
       _positionSub = player.stream.position.listen((position) {
@@ -121,23 +141,11 @@ class _SplitterPageState extends State<SplitterPage> {
         if (!mounted) return;
         setState(() => _isPlaying = playing);
       });
+    } on Object catch (error) {
+      _player = null;
+      _status =
+          'Встроенный плеер недоступен: $error. Авторазметка и экспорт могут работать через ffmpeg.';
     }
-    if (widget.enablePlayback) {
-      unawaited(_checkFfmpeg());
-    } else {
-      _ffmpegStatus = 'ffmpeg check disabled';
-    }
-  }
-
-  @override
-  void dispose() {
-    _phrasesController.removeListener(_handlePhrasesChanged);
-    _phrasesController.dispose();
-    _positionSub?.cancel();
-    _durationSub?.cancel();
-    _playingSub?.cancel();
-    _player?.dispose();
-    super.dispose();
   }
 
   Future<void> _checkFfmpeg() async {
@@ -223,7 +231,19 @@ class _SplitterPageState extends State<SplitterPage> {
       _isBusy = true;
     });
 
-    await _player?.open(Media(path), play: false);
+    final player = _player;
+    if (player != null) {
+      try {
+        await player.open(Media(path), play: false);
+      } on Object catch (error) {
+        _player = null;
+        if (!mounted) return;
+        setState(() {
+          _status =
+              'Аудио загружено, но встроенный плеер недоступен: $error. Продолжаю анализ через ffmpeg.';
+        });
+      }
+    }
 
     if (!_ffmpegReady) {
       if (!mounted) return;
