@@ -23,7 +23,7 @@ class PhraseCutterApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Phrase Cutter',
+      title: 'Phrase Slicer',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF2F6F73),
@@ -695,7 +695,7 @@ class _Header extends StatelessWidget {
               const Icon(Icons.content_cut, size: 28),
               const SizedBox(width: 10),
               const Text(
-                'Phrase Cutter',
+                'Phrase Slicer',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(width: 18),

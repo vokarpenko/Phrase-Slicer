@@ -1,6 +1,6 @@
 {
-    "name": "untitled",
-    "short_name": "untitled",
+    "name": "Phrase Slicer",
+    "short_name": "Phrase Slicer",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

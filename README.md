@@ -1,4 +1,4 @@
-# untitled
+# Phrase Slicer
 
 A new Flutter project.
 
